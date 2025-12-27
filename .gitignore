@@ -1,0 +1,15 @@
+*.npy
+*.npz
+*.root
+*.png
+*.pdf
+*pth
+*txt
+*.err
+*.out
+*outputs_array*
+*.json
+__pycache__/
+models/
+
+
