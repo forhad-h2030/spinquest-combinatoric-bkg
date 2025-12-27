@@ -63,10 +63,12 @@ CFG = TrainConfig(
 
 ### 3. Full training on Rivanna (GPU, Slurm)
 Train all three binary classifiers simultaneously using a Slurm job array:
-```sbatch submit_train_3.sh
+```bash
+sbatch submit_train_3.sh
 ```
 ### 4. Apply trained models to experimental data
 Once training is complete, tag experimental ROOT files with ML outputs:
-```cd scripts
+```bash
+cd scripts
 python3 tag_exp_root_with_ml.py
 ```
