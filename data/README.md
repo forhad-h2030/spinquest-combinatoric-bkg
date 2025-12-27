@@ -3,13 +3,18 @@
 These branches correspond to the **two muon tracks (μ⁺ and μ⁻)** of the **selected reconstructed dimuon**
 candidate in the event.
 
-### 1) Target-evaluated dimuon muon momenta (from dimuon container)
+ ### 1) Target-evaluated muon momenta (from the dimuon object)
 
-These are the momentum components of the μ⁺ and μ⁻ **evaluated at the target**.
-In code, this is set by calling:
+These quantities are the **μ⁺ and μ⁻ three-momenta evaluated at the target plane**, as stored in the `SRecDimuon` object.
 
-- `sdim.calcVariables(1);  // 1 = target`
-- and then reading `sdim.p_pos_target` and `sdim.p_neg_target`.
+In this analysis, the target-level muon momenta are accessed directly via:
+- `dim->p_pos_target`  &nbsp;— μ⁺ momentum at the target  
+- `dim->p_neg_target`  &nbsp;— μ⁻ momentum at the target  
+
+The **dimuon momentum at the target** is then constructed by summing the two:
+```cpp
+dd.mom_target = dim->p_pos_target + dim->p_neg_target;
+```
 
 | Branch name | Type | Meaning |
 |---|---:|---|
