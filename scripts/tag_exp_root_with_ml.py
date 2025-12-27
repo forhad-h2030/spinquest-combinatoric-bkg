@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 from pathlib import Path
 import sys
 import math
@@ -186,7 +184,7 @@ def main():
 
     default_ckpt_jpsi = REPO_ROOT / "models" / "jpsi_vs_nonjpsi.best.pth"
     default_ckpt_psip = REPO_ROOT / "models" / "psip_vs_nonpsip.best.pth"
-    default_ckpt_dy   = REPO_ROOT / "models" / "dy_comb_raw.best.pth"  # DY vs COMB, outputs p(DY) per your training script
+    default_ckpt_dy   = REPO_ROOT / "models" / "dy_comb_raw.best.pth"  
 
     example_cmd = f"""Example:
   python3 {Path(__file__).name} \\

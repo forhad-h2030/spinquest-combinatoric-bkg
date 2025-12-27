@@ -209,7 +209,7 @@ def extract_features(
                 feature_names=np.asarray(FEATURE_NAMES, dtype=object),
                 meta_json=json.dumps(meta),
             )
-            print(f"\n✅ Saved: {out}")
+            print(f"Saved: {out}")
             print(f"Shape: {X.shape}")
 
         return X, FEATURE_NAMES, meta

@@ -20,7 +20,7 @@ DATA_DIR = REPO_ROOT / "data" / "ml_input"
 OUT_DIR  = REPO_ROOT / "models"
 
 CFG = TrainConfig(
-    epochs=200,          
+    epochs=3,          
     lr=5e-4,
     batch_size=1024,
     seed=42,
