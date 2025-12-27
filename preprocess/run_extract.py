@@ -15,7 +15,7 @@ def main():
     X, feature_names, meta = extract_features(
         input_root,
         tree_name=tree_name,
-        output_path=None,   # don't write npz inside
+        output_path=None,   
         mass_min=1.0,
         mass_max=6.0,
         verbose_every=20000,
@@ -25,7 +25,7 @@ def main():
     out_npy.parent.mkdir(parents=True, exist_ok=True)
     np.save(out_npy, X)
 
-    print(f"✅ Saved: {out_npy}  shape={X.shape}")
+    print(f"Saved: {out_npy}  shape={X.shape}")
 
 if __name__ == "__main__":
     main()
