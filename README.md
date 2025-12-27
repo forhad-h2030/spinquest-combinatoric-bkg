@@ -42,6 +42,7 @@ cd preprocess
 source setup.sh              # set up ROOT + environment
 python3 run_extract_all.py   # convert all configured ROOT files (recommended)
 ```
+Skip this step if you already have the processed data (in npy format) or if you have access to the UVA Rivanna HPC (data location: /project/ptgroup/Forhad/spinquest-combinatoric-bkg/data).
 
 ### 2. Test training (short run on Rivanna)
 Before submitting long GPU jobs, it is recommended to test the training workflow
