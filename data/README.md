@@ -52,4 +52,30 @@ These are the reconstructed vertex coordinates of the μ⁺ and μ⁻ tracks.
 | `rec_track_neg_vx` | `double` | μ⁻ track vertex x |
 | `rec_track_neg_vy` | `double` | μ⁻ track vertex y |
 | `rec_track_neg_vz` | `double` | μ⁻ track vertex z |
+-----
 
+# DNN Input Features (Notation & Definitions)
+
+the **18 physics features** used as inputs to the binary DNN classifiers   (J/ψ vs non-J/ψ, ψ′ vs non-ψ′, DY vs combinatoric). All features are computed in   `utils/extract_dimu_features.py`   from a ROOT `TTree` with standardized branches.
+
+| # | Feature name | Definition | Computation |
+|---|-------------|------------|-------------|
+| 1 | `rec_dimu_y` | Dimuon rapidity | `dimu.Rapidity()` |
+| 2 | `rec_dimu_eta` | Dimuon pseudorapidity | `dimu.Eta()` |
+| 3 | `rec_dimu_E` | Dimuon energy | `dimu.E()` |
+| 4 | `rec_dimu_pz` | Dimuon  Pz | `dimu.Pz()` |
+| 5 | `rec_dimu_M` | Dimuon IM | `dimu.M()` |
+| 6 | `rec_mu_theta_pos` | μ⁺ bend angle | `atan2(pT⁺, pz⁺)` |
+| 7 | `rec_mu_theta_neg` | μ⁻ bend angle | `atan2(pT⁻, pz⁻)` |
+| 8 | `rec_mu_open_angle` | Opening angle between mu+ and mu- | `arccos( dot(p_pos, p_neg) / (norm(p_pos) * norm(p_neg)) )` |
+| 9 | `rec_mu_dpt` | pT diff | `pT⁺ − pT⁻` |
+|10 | `rec_dimu_mT` | transverse mass | `sqrt(M² + pT²)` |
+|11 | `rec_mu_Epos` | μ⁺ energy | `mu_pos.E()` |
+|12 | `rec_mu_Eneg` | μ⁻ energy | `mu_neg.E()` |
+|13 | `rec_track_pos_x_st1` | μ⁺ x at St1 | ROOT branch |
+|14 | `rec_track_neg_x_st1` | μ⁻ x at St1 | ROOT branch |
+|15 | `rec_track_pos_px_st1` | μ⁺ Px at St1 | ROOT branch |
+|16 | `rec_track_neg_px_st1` | μ⁻ Px at St1 | ROOT branch |
+|17 | `rec_dz_vtx` |vertex-z diff | `z⁺ − z⁻` |
+|18 | `rec_mu_deltaR` |angular separation | `sqrt((Δη)² + (Δφ)²)` |
+---
