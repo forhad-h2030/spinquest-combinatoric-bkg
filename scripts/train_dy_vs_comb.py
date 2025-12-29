@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 import numpy as np
+import os
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -17,18 +19,19 @@ POS_FILE = "features_mc_raw_dy_compact_dec22.npy"
 NEG_FILE = "features_mc_raw_comb_compact_dec22.npy"
 
 DATA_DIR = REPO_ROOT / "data" / "ml_input"
-OUT_DIR  = REPO_ROOT / "models"
+#OUT_DIR  = REPO_ROOT / "models"
+OUT_DIR = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
+
 
 CFG = TrainConfig(
-    epochs=3,          
-    lr=5e-4,
-    batch_size=1024,
-    seed=42,
-    standardize=False,
+    epochs=int(os.environ.get("EPOCHS", "3")),
+    lr=float(os.environ.get("LR", "5e-4")),
+    batch_size=int(os.environ.get("BATCH_SIZE", "1024")),
+    seed=int(os.environ.get("BOOT_SEED", os.environ.get("SPLIT_SEED", "42"))),
+    standardize=bool(int(os.environ.get("STANDARDIZE", "0"))),
 )
 
-THR = 0.90
-
+THR = float(os.environ.get("THRESHOLD", "0.90"))
 
 def main():
     set_seed(CFG.seed)
@@ -37,7 +40,8 @@ def main():
     pos_label = "DY"
     neg_label = "COMB"
 
-    run_dir = OUT_DIR / run_name
+    #run_dir = OUT_DIR / run_name
+    run_dir = OUT_DIR
     run_dir.mkdir(parents=True, exist_ok=True)
 
     X_pos = load_npy(DATA_DIR / POS_FILE)
