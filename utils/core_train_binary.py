@@ -13,6 +13,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
 
 
 # Config
@@ -44,6 +45,81 @@ class NpyDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+
+def split_three_way_stratified(X, y, train_frac, val_frac, test_frac, seed):
+    if abs(train_frac + val_frac + test_frac - 1.0) > 1e-6:
+        raise ValueError("train_frac + val_frac + test_frac must sum to 1.0")
+
+    # test split
+    X_tmp, X_test, y_tmp, y_test = train_test_split(
+        X, y,
+        test_size=test_frac,
+        random_state=seed,
+        stratify=y,
+    )
+
+    # train/val split (val fraction relative to remaining)
+    val_size = val_frac / (train_frac + val_frac)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_tmp, y_tmp,
+        test_size=val_size,
+        random_state=seed,
+        stratify=y_tmp,
+    )
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
+
+def split_balanced_per_class(
+    X_pos: np.ndarray,
+    X_neg: np.ndarray,
+    train_frac: float,
+    val_frac: float,
+    test_frac: float,
+    seed: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if abs(train_frac + val_frac + test_frac - 1.0) > 1e-6:
+        raise ValueError("train_frac + val_frac + test_frac must sum to 1.0")
+
+    rng = np.random.default_rng(seed)
+
+    # assume X_pos and X_neg are already equal-sized (you already do that)
+    n = len(X_pos)
+    if len(X_neg) != n:
+        raise ValueError("X_pos and X_neg must have same length for balanced split.")
+
+    # shuffle within each class
+    pos = X_pos.copy()
+    neg = X_neg.copy()
+    rng.shuffle(pos)
+    rng.shuffle(neg)
+
+    n_train = int(train_frac * n)
+    n_val   = int(val_frac * n)
+
+    pos_tr, pos_va, pos_te = pos[:n_train], pos[n_train:n_train+n_val], pos[n_train+n_val:]
+    neg_tr, neg_va, neg_te = neg[:n_train], neg[n_train:n_train+n_val], neg[n_train+n_val:]
+
+    # combine + labels
+    X_train = np.concatenate([pos_tr, neg_tr], axis=0)
+    y_train = np.concatenate([np.ones(len(pos_tr)), np.zeros(len(neg_tr))]).astype(np.int64)
+
+    X_val = np.concatenate([pos_va, neg_va], axis=0)
+    y_val = np.concatenate([np.ones(len(pos_va)), np.zeros(len(neg_va))]).astype(np.int64)
+
+    X_test = np.concatenate([pos_te, neg_te], axis=0)
+    y_test = np.concatenate([np.ones(len(pos_te)), np.zeros(len(neg_te))]).astype(np.int64)
+
+    # shuffle within each split (so it's not all pos then all neg)
+    def shuffle_xy(X, y):
+        idx = rng.permutation(len(X))
+        return X[idx], y[idx]
+
+    X_train, y_train = shuffle_xy(X_train, y_train)
+    X_val,   y_val   = shuffle_xy(X_val, y_val)
+    X_test,  y_test  = shuffle_xy(X_test, y_test)
+
+    return X_train, y_train, X_val, y_val, X_test, y_test
+
 
 
 # Model
@@ -94,37 +170,6 @@ def load_npy(path: Path) -> np.ndarray:
         raise ValueError(f"{path} must be 2D (N, F). Got shape={arr.shape}")
     arr = np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=0.0)
     return arr.astype(np.float32)
-
-
-def split_three_way(
-    X: np.ndarray,
-    y: np.ndarray,
-    train_frac: float,
-    val_frac: float,
-    test_frac: float,
-    seed: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    if abs(train_frac + val_frac + test_frac - 1.0) > 1e-6:
-        raise ValueError("train_frac + val_frac + test_frac must sum to 1.0")
-
-    rng = np.random.default_rng(seed)
-    idx = rng.permutation(len(X))
-    X = X[idx]
-    y = y[idx]
-
-    N = len(X)
-    n_train = int(train_frac * N)
-    n_val = int(val_frac * N)
-
-    X_train = X[:n_train]
-    y_train = y[:n_train]
-    X_val = X[n_train : n_train + n_val]
-    y_val = y[n_train : n_train + n_val]
-    X_test = X[n_train + n_val :]
-    y_test = y[n_train + n_val :]
-
-    return X_train, y_train, X_val, y_val, X_test, y_test
-
 
 def standardize_fit_transform(X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray):
     mu = X_train.mean(axis=0, keepdims=True)
@@ -200,16 +245,17 @@ def train_binary_task(
     assert X_pos.shape[1] == X_neg.shape[1], "POS/NEG feature dims differ!"
     print(f"[INFO] equalized: N_pos={len(X_pos)} N_neg={len(X_neg)} (each)")
 
-    # build labels
-    y_pos = np.ones(len(X_pos), dtype=np.int64)
-    y_neg = np.zeros(len(X_neg), dtype=np.int64)
-    X_all = np.concatenate([X_pos, X_neg], axis=0)
-    y_all = np.concatenate([y_pos, y_neg], axis=0)
+    X_train, y_train, X_val, y_val, X_test, y_test = split_balanced_per_class(
+    X_pos, X_neg, cfg.train_frac, cfg.val_frac, cfg.test_frac, cfg.seed)
 
-    # split
-    X_train, y_train, X_val, y_val, X_test, y_test = split_three_way(
-        X_all, y_all, cfg.train_frac, cfg.val_frac, cfg.test_frac, cfg.seed
-    )
+    def frac_pos(y):
+        y = np.asarray(y).astype(int)
+        return float((y == 1).mean()) if len(y) else float("nan")
+
+    print(f"[INFO] train pos frac: {frac_pos(y_train):.4f}")
+    print(f"[INFO] val   pos frac: {frac_pos(y_val):.4f}")
+    print(f"[INFO] test  pos frac: {frac_pos(y_test):.4f}")
+
 
     scaler = None
     if cfg.standardize:
@@ -234,7 +280,8 @@ def train_binary_task(
     ).to(cfg.device)
 
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
+    #optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
 
     best_val = float("inf")
     best_ckpt = out_dir / f"{run_name}.best.pth"
@@ -287,7 +334,9 @@ def train_binary_task(
             )
 
     # load best and evaluate test
-    best = torch.load(best_ckpt, map_location="cpu")
+    #best = torch.load(best_ckpt, map_location="cpu")
+    best = torch.load(best_ckpt, map_location="cpu", weights_only=False)
+
     model.load_state_dict(best["state_dict"])
     model.to(cfg.device).eval()
 

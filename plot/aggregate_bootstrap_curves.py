@@ -155,4 +155,5 @@ if __name__ == "__main__":
     ap.add_argument("--save", action="store_true")
     args = ap.parse_args()
     main(args.out_root, args.run, save=args.save)
+    #python3 plot/aggregate_bootstrap_curves.py outputs_array_6876064 --run dy_comb_raw --save
 

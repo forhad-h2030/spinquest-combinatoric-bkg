@@ -5,7 +5,7 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=05:00:00
-#SBATCH --array=0-29
+#SBATCH --array=0-2
 #SBATCH -o train_%A_%a.out
 #SBATCH -e train_%A_%a.err
 set -euo pipefail
@@ -14,13 +14,14 @@ module purge
 module load apptainer pytorch/2.7.0
 
 # ---- knobs ----
-export NBOOT="${NBOOT:-10}"                 # bootstrap replicas per run
+export NBOOT="${NBOOT:-1}"                 # bootstrap replicas per run
 export SPLIT_SEED="${SPLIT_SEED:-12345}"    # base split seed (will be offset per boot)
 export OUT_ROOT="${OUT_ROOT:-outputs_array_${SLURM_ARRAY_JOB_ID}}"
 export BASE_SEED="${BASE_SEED:-42}"
 export STANDARDIZE="${STANDARDIZE:-0}"
+#export STANDARDIZE=1
 export THRESHOLD="${THRESHOLD:-0.90}"
-export EPOCHS=100
+export EPOCHS=200
 export BATCH_SIZE="${BATCH_SIZE:-1024}"
 export LR="${LR:-5e-4}"
 

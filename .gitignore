@@ -11,5 +11,12 @@
 *.json
 __pycache__/
 models/
-
-
+# virtualenvs
+.venv*/
+venv*/
+.env*/
+.venv-root-onnx/
+# model artifacts
+*.onnx
+*.ort
+EOF
