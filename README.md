@@ -1,3 +1,4 @@
+<img width="1502" height="619" alt="Itr-dnn-nf" src="https://github.com/user-attachments/assets/b9572991-0b85-40c6-b573-2ddb11fa0d26" />
 # spinquest-combinatoric-bkg
 
 Binary DNN classifiers for separating **J/ψ**, **ψ′**, **Drell–Yan**, and **combinatoric background** dimuon events in SpinQuest analyses.
