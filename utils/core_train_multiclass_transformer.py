@@ -263,7 +263,9 @@ def train_multiclass_transformer(
     )
 
     best_val = float("inf")
+    best_epoch = 0
     best_ckpt = out_dir / f"{run_name}.best.pth"
+    progress_file = out_dir / f"{run_name}.progress.json"
     history: Dict[str, list] = {"train": [], "val": []}
 
     for epoch in range(1, cfg.epochs + 1):
@@ -287,15 +289,16 @@ def train_multiclass_transformer(
         tr_loss = tr_loss_sum / max(tr_n, 1)
         val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K)
         scheduler.step()
+        current_lr = scheduler.get_last_lr()[0]
 
-        history["train"].append({"epoch": epoch, "loss": tr_loss,
-                                  "lr": scheduler.get_last_lr()[0]})
+        history["train"].append({"epoch": epoch, "loss": tr_loss, "lr": current_lr})
         history["val"].append({"epoch": epoch,
                                 **{k: v for k, v in val_metrics.items()
                                    if k != "confusion_matrix"}})
 
         if val_metrics["loss"] < best_val:
             best_val = float(val_metrics["loss"])
+            best_epoch = epoch
             payload = {
                 "state_dict": model.state_dict(),
                 "input_dim": input_dim,
@@ -304,6 +307,7 @@ def train_multiclass_transformer(
                 "cfg": asdict(cfg),
                 "scaler": scaler,
                 "best_val": best_val,
+                "best_epoch": best_epoch,
                 "val_metrics": val_metrics,
                 "run_name": run_name,
             }
@@ -313,8 +317,21 @@ def train_multiclass_transformer(
             print(
                 f"[{run_name}] epoch {epoch:03d}/{cfg.epochs} "
                 f"train_loss={tr_loss:.6f}  val_loss={val_metrics['loss']:.6f} "
-                f"val_acc={val_metrics['acc']:.3f} val_macroF1={val_metrics['macro_f1']:.3f}"
+                f"val_acc={val_metrics['acc']:.3f} val_macroF1={val_metrics['macro_f1']:.3f} "
+                f"lr={current_lr:.2e}  best_epoch={best_epoch}",
+                flush=True,
             )
+            progress_file.write_text(json.dumps({
+                "epoch": epoch,
+                "total_epochs": cfg.epochs,
+                "train_loss": tr_loss,
+                "val_loss": val_metrics["loss"],
+                "val_acc": val_metrics["acc"],
+                "val_macro_f1": val_metrics["macro_f1"],
+                "lr": current_lr,
+                "best_val_loss": best_val,
+                "best_epoch": best_epoch,
+            }, indent=2))
 
     # Load best checkpoint and evaluate on test set
     best = torch.load(best_ckpt, map_location="cpu", weights_only=False)

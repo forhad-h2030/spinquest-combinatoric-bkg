@@ -69,6 +69,7 @@ fi
 
 apptainer exec --nv --cleanenv \
   --env PYTHONNOUSERSITE=1 \
+  --env PYTHONUNBUFFERED=1 \
   --env MPLBACKEND=Agg \
   --env MPLCONFIGDIR="$MPLCONFIGDIR" \
   --env OUT_DIR="$OUT_DIR" \
