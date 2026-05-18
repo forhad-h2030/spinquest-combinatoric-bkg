@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
-#SBATCH -p standard
-#SBATCH -c 4
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH -c 1
 #SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH -o infer_transformer_%j.out

@@ -30,7 +30,6 @@ from utils.core_train_multiclass import (
     split_balanced_per_class_multiclass,
     standardize_fit_transform,
     eval_multiclass,
-    predict_proba,
 )
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import roc_auc_score
@@ -76,10 +75,11 @@ def main():
         dim_feedforward = cfg_dict["dim_feedforward"],
         dropout_rate    = cfg_dict["dropout_rate"],
     )
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model.load_state_dict(ckpt["state_dict"])
-    model.eval()
+    model.to(device).eval()
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"[INFO] model params: {n_params:,}", flush=True)
+    print(f"[INFO] model params: {n_params:,}  device: {device}", flush=True)
 
     # ── load & split data (reproduce exact test split) ────────────────────────
     # ── load test data — prefer saved bundle (lightweight) over full reload ────
@@ -129,16 +129,25 @@ def main():
     )
     test_loader = DataLoader(test_ds, batch_size=4096, shuffle=False)
 
-    metrics = eval_multiclass(model, test_loader, "cpu", num_classes=K)
+    # single batched pass — collect logits for AUC at the same time
+    model.eval()
+    proba_list, ytrue_list = [], []
+    with torch.no_grad():
+        for xb, yb in test_loader:
+            logits = model(xb.to(device))
+            proba_list.append(torch.softmax(logits, dim=1).cpu().numpy())
+            ytrue_list.append(yb.numpy())
+    y_proba = np.concatenate(proba_list, axis=0)
+    y_test_arr = np.concatenate(ytrue_list, axis=0)
+
+    metrics = eval_multiclass(model, test_loader, device, num_classes=K)
 
     # per-class accuracy from confusion matrix
     cm      = np.array(metrics["confusion_matrix"])
     per_acc = cm.diagonal() / cm.sum(axis=1)
 
-    # macro one-vs-rest AUC
-    y_proba = predict_proba(model, X_test, "cpu")
     try:
-        auc = float(roc_auc_score(y_test, y_proba, multi_class="ovr", average="macro"))
+        auc = float(roc_auc_score(y_test_arr, y_proba, multi_class="ovr", average="macro"))
     except Exception as e:
         auc = float("nan")
         print(f"[WARN] AUC failed: {e}", flush=True)
