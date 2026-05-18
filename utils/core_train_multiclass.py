@@ -24,14 +24,16 @@ class TrainConfig:
     train_frac: float = 0.8
     val_frac: float = 0.1
     test_frac: float = 0.1
-    epochs: int = 200
+    epochs: int = 300
     lr: float = 5e-4
+    lr_min: float = 1e-6
     batch_size: int = 1024
     seed: int = 42
-    standardize: bool = False
+    standardize: bool = True
     hidden_dim: int = 512
     num_layers: int = 4
     dropout_rate: float = 0.3
+    flat: bool = False          # constant-width layers (no halving)
     num_workers: int = 0
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -248,6 +250,7 @@ class ParticleClassifierMulticlass(nn.Module):
         hidden_dim: int = 512,
         num_layers: int = 4,
         dropout_rate: float = 0.3,
+        flat: bool = False,   # True = constant width; False = halve each layer
     ):
         super().__init__()
         layers = []
@@ -260,9 +263,10 @@ class ParticleClassifierMulticlass(nn.Module):
             layers.append(nn.BatchNorm1d(h))
             layers.append(nn.Dropout(dropout_rate))
             in_dim = h
-            h = max(h // 2, 8)
+            if not flat:
+                h = max(h // 2, 8)
 
-        layers.append(nn.Linear(in_dim, num_classes))  # logits for K classes
+        layers.append(nn.Linear(in_dim, num_classes))
         self.network = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -446,14 +450,20 @@ def train_multiclass_task(
         hidden_dim=cfg.hidden_dim,
         num_layers=cfg.num_layers,
         dropout_rate=cfg.dropout_rate,
+        flat=cfg.flat,
     ).to(cfg.device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
+    )
 
-    best_val = float("inf")
-    best_ckpt = out_dir / f"{run_name}.best.pth"
-    history = {"train": [], "val": []}
+    best_val   = float("inf")
+    best_epoch = 0
+    best_ckpt  = out_dir / f"{run_name}.best.pth"
+    progress_file = out_dir / f"{run_name}.progress.json"
+    history    = {"train": [], "val": []}
 
     for epoch in range(1, cfg.epochs + 1):
         model.train()
@@ -475,12 +485,15 @@ def train_multiclass_task(
 
         tr_loss = tr_loss_sum / max(tr_n, 1)
         val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K)
+        scheduler.step()
+        current_lr = scheduler.get_last_lr()[0]
 
-        history["train"].append({"epoch": epoch, "loss": tr_loss})
+        history["train"].append({"epoch": epoch, "loss": tr_loss, "lr": current_lr})
         history["val"].append({"epoch": epoch, **{k: v for k, v in val_metrics.items() if k != "confusion_matrix"}})
 
         if val_metrics["loss"] < best_val:
-            best_val = float(val_metrics["loss"])
+            best_val   = float(val_metrics["loss"])
+            best_epoch = epoch
             payload = {
                 "state_dict": model.state_dict(),
                 "input_dim": input_dim,
@@ -489,8 +502,10 @@ def train_multiclass_task(
                 "cfg": asdict(cfg),
                 "scaler": scaler,
                 "best_val": best_val,
+                "best_epoch": best_epoch,
                 "val_metrics": val_metrics,
                 "run_name": run_name,
+                "model_type": "dnn",
             }
             torch.save(payload, best_ckpt)
 
@@ -498,8 +513,21 @@ def train_multiclass_task(
             print(
                 f"[{run_name}] epoch {epoch:03d}/{cfg.epochs} "
                 f"train_loss={tr_loss:.6f}  val_loss={val_metrics['loss']:.6f} "
-                f"val_acc={val_metrics['acc']:.3f} val_macroF1={val_metrics['macro_f1']:.3f}"
+                f"val_acc={val_metrics['acc']:.3f} val_macroF1={val_metrics['macro_f1']:.3f} "
+                f"lr={current_lr:.2e}  best_epoch={best_epoch}",
+                flush=True,
             )
+            progress_file.write_text(json.dumps({
+                "epoch": epoch,
+                "total_epochs": cfg.epochs,
+                "train_loss": tr_loss,
+                "val_loss": val_metrics["loss"],
+                "val_acc": val_metrics["acc"],
+                "val_macro_f1": val_metrics["macro_f1"],
+                "lr": current_lr,
+                "best_val_loss": best_val,
+                "best_epoch": best_epoch,
+            }, indent=2))
 
     # load best and evaluate test
     best = torch.load(best_ckpt, map_location="cpu", weights_only=False)
@@ -510,8 +538,10 @@ def train_multiclass_task(
 
     summary = {
         "run_name": run_name,
+        "model_type": "dnn",
         "best_ckpt": str(best_ckpt),
         "best_val_loss": float(best["best_val"]),
+        "best_epoch": best_epoch,
         "val_metrics_at_best": best["val_metrics"],
         "test_metrics": test_metrics,
         "cfg": best["cfg"],
@@ -592,6 +622,7 @@ def train_multiclass_weighted(
         hidden_dim=cfg.hidden_dim,
         num_layers=cfg.num_layers,
         dropout_rate=cfg.dropout_rate,
+        flat=cfg.flat,
     ).to(cfg.device)
 
     # Weighted loss

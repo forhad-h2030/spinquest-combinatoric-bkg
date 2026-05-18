@@ -29,14 +29,16 @@ DATA_DIR = REPO_ROOT / "data" / "ml_input"
 OUT_DIR  = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
 
 CFG = TrainConfig(
-    epochs=int(os.environ.get("EPOCHS", "200")),
-    lr=float(os.environ.get("LR", "5e-4")),
-    batch_size=int(os.environ.get("BATCH_SIZE", "1024")),
-    seed=int(os.environ.get("BOOT_SEED", os.environ.get("SPLIT_SEED", "42"))),
-    standardize=bool(int(os.environ.get("STANDARDIZE", "0"))),
-    hidden_dim=int(os.environ.get("HIDDEN_DIM", "512")),
-    num_layers=int(os.environ.get("NUM_LAYERS", "4")),
-    dropout_rate=float(os.environ.get("DROPOUT", "0.3")),
+    epochs       = int(os.environ.get("EPOCHS",      "300")),
+    lr           = float(os.environ.get("LR",        "5e-4")),
+    lr_min       = float(os.environ.get("LR_MIN",    "1e-6")),
+    batch_size   = int(os.environ.get("BATCH_SIZE",  "1024")),
+    seed         = int(os.environ.get("BOOT_SEED", os.environ.get("SPLIT_SEED", "42"))),
+    standardize  = bool(int(os.environ.get("STANDARDIZE", "1"))),
+    hidden_dim   = int(os.environ.get("HIDDEN_DIM",  "512")),
+    num_layers   = int(os.environ.get("NUM_LAYERS",  "4")),
+    dropout_rate = float(os.environ.get("DROPOUT",   "0.3")),
+    flat         = bool(int(os.environ.get("FLAT",   "0"))),
 )
 
 

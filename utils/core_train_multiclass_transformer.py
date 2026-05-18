@@ -310,6 +310,7 @@ def train_multiclass_transformer(
                 "best_epoch": best_epoch,
                 "val_metrics": val_metrics,
                 "run_name": run_name,
+                "model_type": "transformer",
             }
             torch.save(payload, best_ckpt)
 

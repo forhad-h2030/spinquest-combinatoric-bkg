@@ -5,7 +5,7 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=12:30:00
-#SBATCH --array=0-0
+#SBATCH --array=0-2
 #SBATCH -o train_multiclass_transformer_%A_%a.out
 #SBATCH -e train_multiclass_transformer_%A_%a.err
 

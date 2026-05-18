@@ -5,20 +5,20 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=2:30:00
-#SBATCH --array=0-9
+#SBATCH --array=0-2
 #SBATCH -o train_multiclass_%A_%a.out
 #SBATCH -e train_multiclass_%A_%a.err
 set -euo pipefail
 module purge
 module load apptainer pytorch/2.7.0
 cd "${SLURM_SUBMIT_DIR}"
-export NBOOT="${NBOOT:-10}"
 export SPLIT_SEED="${SPLIT_SEED:-42}"
 export OUT_ROOT="${OUT_ROOT:-outputs_multiclass_${SLURM_ARRAY_JOB_ID}}"
-export STANDARDIZE="${STANDARDIZE:-0}"
+export STANDARDIZE="${STANDARDIZE:-1}"
 export EPOCHS="${EPOCHS:-300}"
 export BATCH_SIZE="${BATCH_SIZE:-1024}"
 export LR="${LR:-5e-4}"
+export LR_MIN="${LR_MIN:-1e-6}"
 export HIDDEN_DIM="${HIDDEN_DIM:-512}"
 export NUM_LAYERS="${NUM_LAYERS:-4}"
 export DROPOUT="${DROPOUT:-0.3}"
@@ -33,7 +33,8 @@ echo "[INFO] job_id=${SLURM_JOB_ID} task_id=${IDX}"
 echo "[INFO] boot_idx=${BOOT_IDX} boot_seed=${BOOT_SEED}"
 echo "[INFO] script=${SCRIPT}"
 echo "[INFO] run_name=${RUN_NAME}"
-echo "[INFO] epochs=${EPOCHS} lr=${LR} batch=${BATCH_SIZE} standardize=${STANDARDIZE}"
+echo "[INFO] epochs=${EPOCHS} lr=${LR} lr_min=${LR_MIN} batch=${BATCH_SIZE} standardize=${STANDARDIZE}"
+echo "[INFO] hidden_dim=${HIDDEN_DIM} num_layers=${NUM_LAYERS} dropout=${DROPOUT}"
 echo "[INFO] out_root=${OUT_ROOT}"
 BOOT_TAG="$(printf "boot_%03d" "${BOOT_IDX}")"
 export RUN_DIR="${OUT_ROOT}/${RUN_NAME}/${BOOT_TAG}"
@@ -50,6 +51,7 @@ if [[ ! -f "$SIF" ]]; then
 fi
 apptainer exec --nv --cleanenv \
   --env PYTHONNOUSERSITE=1 \
+  --env PYTHONUNBUFFERED=1 \
   --env MPLBACKEND=Agg \
   --env MPLCONFIGDIR="$MPLCONFIGDIR" \
   --env OUT_DIR="$OUT_DIR" \
@@ -58,6 +60,7 @@ apptainer exec --nv --cleanenv \
   --env SEED="$BOOT_SEED" \
   --env EPOCHS="$EPOCHS" \
   --env LR="$LR" \
+  --env LR_MIN="$LR_MIN" \
   --env BATCH_SIZE="$BATCH_SIZE" \
   --env STANDARDIZE="$STANDARDIZE" \
   --env HIDDEN_DIM="$HIDDEN_DIM" \
