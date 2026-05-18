@@ -19,17 +19,18 @@ cd "${SLURM_SUBMIT_DIR}"
 export NBOOT="${NBOOT:-1}"
 export SPLIT_SEED="${SPLIT_SEED:-42}"
 export OUT_ROOT="${OUT_ROOT:-outputs_multiclass_transformer_${SLURM_ARRAY_JOB_ID}}"
-export STANDARDIZE="${STANDARDIZE:-0}"
+export STANDARDIZE="${STANDARDIZE:-1}"
 
-export EPOCHS="${EPOCHS:-400}"
+export EPOCHS="${EPOCHS:-600}"
 export BATCH_SIZE="${BATCH_SIZE:-1024}"
 export LR="${LR:-5e-4}"
+export LR_MIN="${LR_MIN:-1e-6}"
 
 # Transformer-specific hyperparameters
-export D_MODEL="${D_MODEL:-64}"           # token embedding dimension
-export N_HEADS="${N_HEADS:-4}"            # attention heads (D_MODEL must be divisible by N_HEADS)
+export D_MODEL="${D_MODEL:-128}"          # token embedding dimension (head_dim = D_MODEL / N_HEADS)
+export N_HEADS="${N_HEADS:-4}"            # attention heads → head_dim = 32
 export N_ENCODER_LAYERS="${N_ENCODER_LAYERS:-4}"  # number of encoder blocks
-export DIM_FF="${DIM_FF:-256}"            # feedforward inner dimension
+export DIM_FF="${DIM_FF:-512}"            # feedforward inner dimension (4× D_MODEL)
 export DROPOUT="${DROPOUT:-0.1}"
 
 export RUN_NAME="${RUN_NAME:-transformer_jpsi_psip_dy_comb}"
@@ -45,7 +46,7 @@ echo "[INFO] job_id=${SLURM_JOB_ID} task_id=${IDX}"
 echo "[INFO] boot_idx=${BOOT_IDX} boot_seed=${BOOT_SEED}"
 echo "[INFO] script=${SCRIPT}"
 echo "[INFO] run_name=${RUN_NAME}"
-echo "[INFO] epochs=${EPOCHS} lr=${LR} batch=${BATCH_SIZE} standardize=${STANDARDIZE}"
+echo "[INFO] epochs=${EPOCHS} lr=${LR} lr_min=${LR_MIN} batch=${BATCH_SIZE} standardize=${STANDARDIZE}"
 echo "[INFO] d_model=${D_MODEL} n_heads=${N_HEADS} n_encoder_layers=${N_ENCODER_LAYERS} dim_ff=${DIM_FF} dropout=${DROPOUT}"
 echo "[INFO] out_root=${OUT_ROOT}"
 
@@ -76,6 +77,7 @@ apptainer exec --nv --cleanenv \
   --env SEED="$BOOT_SEED" \
   --env EPOCHS="$EPOCHS" \
   --env LR="$LR" \
+  --env LR_MIN="$LR_MIN" \
   --env BATCH_SIZE="$BATCH_SIZE" \
   --env STANDARDIZE="$STANDARDIZE" \
   --env D_MODEL="$D_MODEL" \
