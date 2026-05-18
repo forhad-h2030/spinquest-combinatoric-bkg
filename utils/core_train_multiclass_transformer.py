@@ -36,16 +36,17 @@ class TransformerTrainConfig:
     train_frac: float = 0.8
     val_frac: float = 0.1
     test_frac: float = 0.1
-    epochs: int = 200
+    epochs: int = 600
     lr: float = 5e-4
+    lr_min: float = 1e-6        # cosine annealing floor
     batch_size: int = 1024
     seed: int = 42
-    standardize: bool = False
+    standardize: bool = True
     # Transformer-specific
-    d_model: int = 64           # token embedding dimension
-    n_heads: int = 4            # attention heads (d_model must be divisible by n_heads)
+    d_model: int = 128          # token embedding dimension (head_dim = d_model / n_heads)
+    n_heads: int = 4            # attention heads → head_dim = 32
     n_encoder_layers: int = 4   # number of TransformerEncoderLayer blocks
-    dim_feedforward: int = 256  # inner FFN dimension per encoder layer
+    dim_feedforward: int = 512  # inner FFN dimension (keep 4× d_model)
     dropout_rate: float = 0.1
     num_workers: int = 0
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -257,6 +258,9 @@ def train_multiclass_transformer(
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
+    )
 
     best_val = float("inf")
     best_ckpt = out_dir / f"{run_name}.best.pth"
@@ -282,8 +286,10 @@ def train_multiclass_transformer(
 
         tr_loss = tr_loss_sum / max(tr_n, 1)
         val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K)
+        scheduler.step()
 
-        history["train"].append({"epoch": epoch, "loss": tr_loss})
+        history["train"].append({"epoch": epoch, "loss": tr_loss,
+                                  "lr": scheduler.get_last_lr()[0]})
         history["val"].append({"epoch": epoch,
                                 **{k: v for k, v in val_metrics.items()
                                    if k != "confusion_matrix"}})

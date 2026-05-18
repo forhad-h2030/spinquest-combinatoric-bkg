@@ -29,16 +29,17 @@ DATA_DIR = REPO_ROOT / "data" / "ml_input"
 OUT_DIR  = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
 
 CFG = TransformerTrainConfig(
-    epochs       = int(os.environ.get("EPOCHS",        "200")),
-    lr           = float(os.environ.get("LR",          "5e-4")),
-    batch_size   = int(os.environ.get("BATCH_SIZE",    "1024")),
-    seed         = int(os.environ.get("BOOT_SEED", os.environ.get("SPLIT_SEED", "42"))),
-    standardize  = bool(int(os.environ.get("STANDARDIZE", "0"))),
-    d_model         = int(os.environ.get("D_MODEL",         "64")),
+    epochs          = int(os.environ.get("EPOCHS",           "600")),
+    lr              = float(os.environ.get("LR",             "5e-4")),
+    lr_min          = float(os.environ.get("LR_MIN",         "1e-6")),
+    batch_size      = int(os.environ.get("BATCH_SIZE",       "1024")),
+    seed            = int(os.environ.get("BOOT_SEED", os.environ.get("SPLIT_SEED", "42"))),
+    standardize     = bool(int(os.environ.get("STANDARDIZE", "1"))),
+    d_model         = int(os.environ.get("D_MODEL",          "128")),
     n_heads         = int(os.environ.get("N_HEADS",          "4")),
     n_encoder_layers= int(os.environ.get("N_ENCODER_LAYERS", "4")),
-    dim_feedforward = int(os.environ.get("DIM_FF",          "256")),
-    dropout_rate    = float(os.environ.get("DROPOUT",       "0.1")),
+    dim_feedforward = int(os.environ.get("DIM_FF",           "512")),
+    dropout_rate    = float(os.environ.get("DROPOUT",        "0.1")),
 )
 
 
