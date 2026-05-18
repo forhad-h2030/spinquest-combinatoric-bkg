@@ -14,10 +14,11 @@ from utils.features import FEATURE_NAMES
 
 # POS = J/psi
 # NEG = non-jpsi
-POS_FILE = "features_compact_mc_jpsi_target_pythia8_acc.npy"
+POS_FILE = "mc_jpsi_tuned1.npy"
 NEG_FILE = "features_compact_mc_non_jpsi_target_pythia8_acc.npy"
 
-DATA_DIR = REPO_ROOT / "data" / "ml_input"
+#DATA_DIR = REPO_ROOT / "data" / "ml_input"
+DATA_DIR = REPO_ROOT / "data" / "ml_input_multiclass_M_24"
 OUT_DIR = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
 
 CFG = TrainConfig(

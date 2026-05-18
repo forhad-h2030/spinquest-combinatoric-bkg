@@ -84,7 +84,7 @@ def extract_features(
     *,
     tree_name: str = "tree",
     output_path: Optional[Path | str] = None,
-    mass_min: float = 1.0,
+    mass_min: float = 2.0,
     mass_max: float = 6.0,
     verbose_every: int = 10000,
     dtype=np.float64,
@@ -150,8 +150,10 @@ def extract_features(
             open_angle = float(np.arccos(np.clip(cos_open, -1.0, 1.0)))
 
             # Single-muon derived
-            theta_pos = float(np.arctan2(mu_pos.Pt(), mu_pos.Pz()))
-            theta_neg = float(np.arctan2(mu_neg.Pt(), mu_neg.Pz()))
+            theta_pos = np.arctan(mu_pos.Px() / mu_pos.Pz())
+            theta_neg = np.arctan(mu_neg.Px() / mu_neg.Pz())
+
+
             dpt = float(mu_pos.Pt() - mu_neg.Pt())
             Epos = float(mu_pos.E())
             Eneg = float(mu_neg.E())
@@ -223,7 +225,7 @@ def main():
     p.add_argument("--tree", default="tree", help="TTree name (default: tree)")
     p.add_argument("--out", required=True, type=Path, help="Output .npz path")
     p.add_argument("--mass-min", type=float, default=2.0, help="Mass window min (GeV)")
-    p.add_argument("--mass-max", type=float, default=4.0, help="Mass window max (GeV)")
+    p.add_argument("--mass-max", type=float, default=6.0, help="Mass window max (GeV)")
     p.add_argument("--verbose-every", type=int, default=10000, help="Print progress every N events (0 disables)")
     args = p.parse_args()
 

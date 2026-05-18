@@ -8,6 +8,7 @@
 *.err
 *.out
 *outputs_array*
+*outputs_*
 *.json
 __pycache__/
 models/

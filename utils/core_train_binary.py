@@ -31,7 +31,8 @@ class TrainConfig:
     num_layers: int = 4
     dropout_rate: float = 0.3
     num_workers: int = 0
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    #device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    device: str = "cuda"
 
 
 # Dataset
@@ -280,8 +281,8 @@ def train_binary_task(
     ).to(cfg.device)
 
     criterion = nn.BCEWithLogitsLoss()
-    #optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
-    optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.lr)
+    #optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
 
     best_val = float("inf")
     best_ckpt = out_dir / f"{run_name}.best.pth"

@@ -8,23 +8,25 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from utils.core_train_multiclass import (
-    TrainConfig, 
-    set_seed, 
-    load_npy, 
+    TrainConfig,
+    set_seed,
+    load_npy,
     train_multiclass_task,
     predict_proba,
     predict_class
 )
+from utils.plots_multiclass import plot_overlays_multiclass
 from utils.features import FEATURE_NAMES
 
 # Define input files for each class
-JPSI_FILE = "mc_raw_jpsi_compact_feb12_tunedI.npy"
-PSIP_FILE = "mc_raw_psip_compact_feb12_tunedI.npy"
-DY_FILE = "features_dy.npy"
-COMB_FILE = "mc_raw_jpsi_compact_feb12_tuned_itr2.npy"
+JPSI_FILE = "features_mc_jpsi_tuned1.npy"
+PSIP_FILE = "features_mc_psip_tuned1.npy"
+DY_FILE   = "features_mc_dy_target_pythia8_clsDNNmulti_v1.npy"
+COMB_FILE = "features_mc_comb_target_gun_clsDNNmulti_v1.npy"
 
+#DATA_DIR = REPO_ROOT / "data" / "ml_input_multiclass_M_24"
 DATA_DIR = REPO_ROOT / "data" / "ml_input"
-OUT_DIR = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
+OUT_DIR  = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
 
 CFG = TrainConfig(
     epochs=int(os.environ.get("EPOCHS", "200")),
@@ -37,33 +39,50 @@ CFG = TrainConfig(
     dropout_rate=float(os.environ.get("DROPOUT", "0.3")),
 )
 
+
 def main():
     set_seed(CFG.seed)
 
-    run_name = "multiclass_jpsi_psip_dy_comb"
+    run_name    = "ml_input_multiclass_M_26_march_19"
     class_names = ["J/psi", "psi(2S)", "DY", "Combinatoric"]
-    
+
     run_dir = OUT_DIR
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load data for each class
+    # ── Load data ────────────────────────────────────────────────────────────
     print(f"[INFO] Loading data from {DATA_DIR}")
     X_jpsi = load_npy(DATA_DIR / JPSI_FILE)
     X_psip = load_npy(DATA_DIR / PSIP_FILE)
-    X_dy = load_npy(DATA_DIR / DY_FILE)
+    X_dy   = load_npy(DATA_DIR / DY_FILE)
     X_comb = load_npy(DATA_DIR / COMB_FILE)
-    
-    print(f"[INFO] Data shapes:")
-    print(f"  J/psi: {X_jpsi.shape}")
-    print(f"  psi(2S): {X_psip.shape}")
-    print(f"  DY: {X_dy.shape}")
+
+    print("[INFO] Data shapes:")
+    print(f"  J/psi       : {X_jpsi.shape}")
+    print(f"  psi(2S)     : {X_psip.shape}")
+    print(f"  DY          : {X_dy.shape}")
     print(f"  Combinatoric: {X_comb.shape}")
 
-    # Create list of class data
     Xs = [X_jpsi, X_psip, X_dy, X_comb]
 
-    # Train multiclass model
-    print(f"\n[INFO] Training multiclass classifier...")
+    print("[INFO] Generating feature overlay plots ...")
+    plot_overlays_multiclass(
+        Xs=Xs,
+        class_names=class_names,
+        feature_names=FEATURE_NAMES,
+        run_name=run_name,
+        out_dir=run_dir,
+        bins=100,
+        density=True,
+        fontsize=14,
+        show_stats=True,
+        legend_all=False,
+        feature_ranges={"rec_dimu_M": (2.0, 6.0)},
+        save=True,
+        show=False,
+    )
+
+    # ── Train ────────────────────────────────────────────────────────────────
+    print("\n[INFO] Training multiclass classifier ...")
     out = train_multiclass_task(
         Xs=Xs,
         cfg=CFG,
@@ -72,11 +91,11 @@ def main():
         class_names=class_names,
     )
 
-    # Get predictions on test set
+    # ── Predictions on test set ──────────────────────────────────────────────
     y_proba = predict_proba(out["model"], out["X_test"], CFG.device)
-    y_pred = predict_class(out["model"], out["X_test"], CFG.device)
+    y_pred  = predict_class(out["model"], out["X_test"], CFG.device)
 
-    # Save test bundle
+    # ── Save test bundle ─────────────────────────────────────────────────────
     np.savez_compressed(
         run_dir / f"{run_name}.test_bundle.npz",
         X_test=out["X_test"].astype(np.float32),
@@ -87,11 +106,13 @@ def main():
         run_name=run_name,
     )
 
+    # ── Summary ──────────────────────────────────────────────────────────────
     print(f"\n[INFO] Training complete!")
-    print(f"[INFO] Results saved to: {run_dir}")
-    print(f"[INFO] Best checkpoint: {out['summary']['best_ckpt']}")
-    print(f"[INFO] Test accuracy: {out['summary']['test_metrics']['acc']:.4f}")
-    print(f"[INFO] Test macro F1: {out['summary']['test_metrics']['macro_f1']:.4f}")
+    print(f"[INFO] Results saved to : {run_dir}")
+    print(f"[INFO] Best checkpoint  : {out['summary']['best_ckpt']}")
+    print(f"[INFO] Test accuracy    : {out['summary']['test_metrics']['acc']:.4f}")
+    print(f"[INFO] Test macro F1    : {out['summary']['test_metrics']['macro_f1']:.4f}")
+
     print(f"\n[INFO] Test Confusion Matrix:")
     cm = np.array(out['summary']['test_metrics']['confusion_matrix'])
     print("Predicted ->")
@@ -99,7 +120,8 @@ def main():
     print(header)
     print("-" * len(header))
     for i, name in enumerate(class_names):
-        row = f"{name:>4s} | " + " | ".join([f"{cm[i,j]:>12d}" for j in range(len(class_names))])
+        row = (f"{name:>4s} | " +
+               " | ".join([f"{cm[i, j]:>12d}" for j in range(len(class_names))]))
         print(row)
 
 

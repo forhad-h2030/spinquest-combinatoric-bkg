@@ -3,8 +3,8 @@
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH -c 1
-#SBATCH --mem=24G
-#SBATCH --time=05:00:00
+#SBATCH --mem=18G
+#SBATCH --time=03:00:00
 #SBATCH --array=0-2
 #SBATCH -o train_%A_%a.out
 #SBATCH -e train_%A_%a.err
@@ -97,4 +97,4 @@ apptainer exec --nv --cleanenv \
   "$CONTAINERDIR/pytorch-2.7.0.sif" \
   python3 "$SCRIPT"
 
-# sbatch --export=ALL,NBOOT=2 submit_train_3.sh
+# sbatch --export=ALL,NBOOT=1 submit_train_3.sh

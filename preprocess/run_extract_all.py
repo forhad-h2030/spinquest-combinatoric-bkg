@@ -35,7 +35,7 @@ def main():
             input_root,
             tree_name=tree_name,
             output_path=None,   
-            mass_min=1.0,
+            mass_min=1.5,
             mass_max=6.0,
             verbose_every=20000,
         )

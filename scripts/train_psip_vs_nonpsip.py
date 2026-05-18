@@ -15,10 +15,11 @@ from utils.features import FEATURE_NAMES
 
 # POS = psi'
 # NEG = non-psi'
-POS_FILE = "features_compact_mc_psip_target_pythia8_acc.npy"
+POS_FILE = "mc_psip_tuned1.npy"
 NEG_FILE = "features_compact_mc_non_psip_target_pythia8_acc.npy"
 
-DATA_DIR = REPO_ROOT / "data" / "ml_input"
+DATA_DIR = REPO_ROOT / "data" / "ml_input_M_24"
+#DATA_DIR = REPO_ROOT / "data" / "ml_input"
 OUT_DIR = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
 
 

@@ -15,11 +15,10 @@ from utils.features import FEATURE_NAMES
 
 # POS = DY (untuned)
 # NEG = raw combinatoric
-POS_FILE = "features_mc_raw_dy_compact_dec22.npy"
-NEG_FILE = "features_mc_raw_comb_compact_dec22.npy"
+POS_FILE = "features_mc_dy_pythia8_march19_tuned_I.npy"
+NEG_FILE = "features_mc_comb_muon_gun_march19_tuned_I.npy"
 
-DATA_DIR = REPO_ROOT / "data" / "ml_input"
-#OUT_DIR  = REPO_ROOT / "models"
+DATA_DIR = REPO_ROOT / "data" / "ml_input_multiclass_M_24"
 OUT_DIR = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
 
 
