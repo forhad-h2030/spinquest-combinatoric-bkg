@@ -82,33 +82,42 @@ def main():
     print(f"[INFO] model params: {n_params:,}", flush=True)
 
     # ── load & split data (reproduce exact test split) ────────────────────────
-    print(f"[INFO] loading data ...", flush=True)
-    X_jpsi = load_npy(data_dir / JPSI_FILE)
-    X_psip = load_npy(data_dir / PSIP_FILE)
-    X_dy   = load_npy(data_dir / DY_FILE)
-    X_comb = load_npy(data_dir / COMB_FILE)
-    Xs = [X_jpsi, X_psip, X_dy, X_comb]
+    # ── load test data — prefer saved bundle (lightweight) over full reload ────
+    run_name    = ckpt.get("run_name", ckpt_path.stem.replace(".best", ""))
+    bundle_path = ckpt_path.parent / f"{run_name}.test_bundle.npz"
 
-    seed        = cfg_dict["seed"]
-    train_frac  = cfg_dict["train_frac"]
-    val_frac    = cfg_dict["val_frac"]
-    test_frac   = cfg_dict["test_frac"]
-    standardize = cfg_dict["standardize"]
+    if bundle_path.exists():
+        print(f"[INFO] loading test bundle from {bundle_path}", flush=True)
+        bundle  = np.load(bundle_path, allow_pickle=True)
+        X_test  = bundle["X_test"].astype(np.float32)
+        y_test  = bundle["y_test"].astype(np.int64)
+        # bundle was saved post-standardization, so no further scaling needed
+        standardize = False
+    else:
+        print(f"[INFO] no test bundle found — loading full data ...", flush=True)
+        X_jpsi = load_npy(data_dir / JPSI_FILE)
+        X_psip = load_npy(data_dir / PSIP_FILE)
+        X_dy   = load_npy(data_dir / DY_FILE)
+        X_comb = load_npy(data_dir / COMB_FILE)
 
-    Xs_eq = equalize_classes(Xs, seed=seed)
-    X_train, _, X_val, _, X_test, y_test = split_balanced_per_class_multiclass(
-        Xs_eq, train_frac, val_frac, test_frac, seed
-    )
+        seed       = cfg_dict["seed"]
+        train_frac = cfg_dict["train_frac"]
+        val_frac   = cfg_dict["val_frac"]
+        test_frac  = cfg_dict["test_frac"]
+
+        Xs_eq = equalize_classes([X_jpsi, X_psip, X_dy, X_comb], seed=seed)
+        X_train, _, X_val, _, X_test, y_test = split_balanced_per_class_multiclass(
+            Xs_eq, train_frac, val_frac, test_frac, seed
+        )
+        standardize = cfg_dict["standardize"]
+
     print(f"[INFO] test set: {len(X_test):,} samples", flush=True)
 
     if standardize:
         if scaler is not None:
-            mu  = scaler["mean"]
-            sig = scaler["std"]
-            X_test = (X_test - mu) / sig
+            X_test = (X_test - scaler["mean"]) / scaler["std"]
             print("[INFO] applied saved scaler", flush=True)
         else:
-            # scaler not in checkpoint (old format) — refit on train split
             _, _, X_test, _ = standardize_fit_transform(X_train, X_val, X_test)
             print("[INFO] scaler not in checkpoint — refit on train split", flush=True)
 
@@ -151,7 +160,6 @@ def main():
         print(f"  {class_names[i]:>12s}  " + "  ".join(f"{v:>12d}" for v in row), flush=True)
 
     # ── save results ──────────────────────────────────────────────────────────
-    run_name = ckpt.get("run_name", ckpt_path.stem.replace(".best", ""))
     summary = {
         "run_name"    : run_name,
         "ckpt_path"   : str(ckpt_path),

@@ -2,7 +2,7 @@
 #SBATCH -A spinquest_standard
 #SBATCH -p standard
 #SBATCH -c 4
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 #SBATCH --time=00:30:00
 #SBATCH -o infer_transformer_%j.out
 #SBATCH -e infer_transformer_%j.err
