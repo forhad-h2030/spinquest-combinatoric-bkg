@@ -41,6 +41,8 @@ class TrainConfig:
     focal_gamma: float = 2.0
     label_smoothing: float = 0.0
     model_type: str = "dnn"     # "dnn" | "resnet"
+    optimizer_type: str = "adam"    # "adam" | "adamw"
+    scheduler_type: str = "cosine"  # "cosine" | "onecycle"
 
 
 # -------------------------
@@ -598,10 +600,26 @@ def train_multiclass_task(
     criterion = build_criterion(cfg, cw, cfg.device)
     print(f"[INFO] loss={cfg.loss_type}" + (f"  gamma={cfg.focal_gamma}" if cfg.loss_type == "focal" else "") +
           (f"  label_smoothing={cfg.label_smoothing}" if cfg.loss_type == "ce_ls" else ""))
-    optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
-    )
+    if cfg.optimizer_type == "adamw":
+        optimizer = optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=1e-2)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
+
+    steps_per_epoch = len(train_loader)
+    if cfg.scheduler_type == "onecycle":
+        scheduler = optim.lr_scheduler.OneCycleLR(
+            optimizer, max_lr=cfg.lr,
+            epochs=cfg.epochs, steps_per_epoch=steps_per_epoch,
+            pct_start=0.1,          # 10% warmup
+            div_factor=25,          # initial_lr = max_lr / 25
+            final_div_factor=1e4,   # final_lr  = initial_lr / 1e4
+        )
+    else:
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
+        )
+
+    print(f"[INFO] optimizer={cfg.optimizer_type}  scheduler={cfg.scheduler_type}")
 
     best_val   = float("inf")
     best_epoch = 0
@@ -624,13 +642,17 @@ def train_multiclass_task(
             loss.backward()
             optimizer.step()
 
+            if cfg.scheduler_type == "onecycle":
+                scheduler.step()
+
             tr_loss_sum += float(loss.item()) * xb.size(0)
             tr_n += xb.size(0)
 
         tr_loss = tr_loss_sum / max(tr_n, 1)
         val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K,
                                       class_weights=cw if use_class_weights else None)
-        scheduler.step()
+        if cfg.scheduler_type != "onecycle":
+            scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
 
         history["train"].append({"epoch": epoch, "loss": tr_loss, "lr": current_lr})
