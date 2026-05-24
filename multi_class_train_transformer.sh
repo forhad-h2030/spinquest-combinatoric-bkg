@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -A spinquest_standard
 #SBATCH -p gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=12:30:00
