@@ -5,23 +5,16 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=4:00:00
-#SBATCH --array=0-8
+#SBATCH --array=0-1
 #SBATCH -o followup_%A_%a.out
 #SBATCH -e followup_%A_%a.err
 
-# ── Follow-up: top-2 loss variants + focal_g1, 300 epochs, 3 seeds = 9 jobs ──
+# ── Follow-up: sweep winners only, 300 epochs, 1 seed = 2 jobs ───────────────
 #
-#  Sweep winner: ce_base and ce_ls tied at test_acc~0.848
-#  Focal_g1 undertrained at 100 epochs (best_epoch 92-98) — giving it 300.
+#  Sweep result: ce_base and ce_ls tied at test_acc~0.848, focal variants worse.
 #
-#  Variant 0  ce_base   CE + class weights,       flat 512×4, drop=0.1
-#  Variant 1  ce_ls     CE + label_smooth=0.05,   flat 512×4, drop=0.1
-#  Variant 2  focal_g1  Focal γ=1 + class weights, flat 512×4, drop=0.1
-#
-#  Array mapping: task = variant_idx * N_BOOT + boot_idx
-#    tasks 0-2 → ce_base
-#    tasks 3-5 → ce_ls
-#    tasks 6-8 → focal_g1
+#  Variant 0  ce_base   CE + class weights,     flat 512×4, drop=0.1
+#  Variant 1  ce_ls     CE + label_smooth=0.05, flat 512×4, drop=0.1
 #
 #  Submit:
 #    sbatch multi_class_followup.sh
@@ -34,7 +27,7 @@ module load apptainer pytorch/2.7.0
 
 cd "${SLURM_SUBMIT_DIR}"
 
-export N_BOOT=3
+export N_BOOT=1
 export SPLIT_SEED="${SPLIT_SEED:-42}"
 export OUT_ROOT="${OUT_ROOT:-outputs_followup_${SLURM_ARRAY_JOB_ID}}"
 export EPOCHS="${EPOCHS:-300}"
@@ -45,14 +38,14 @@ export STANDARDIZE="${STANDARDIZE:-1}"
 SCRIPT="scripts/train_multiclass.py"
 
 # ── variant definitions ───────────────────────────────────────────────────────
-VARIANT_NAMES=( "ce_base"  "ce_ls"   "focal_g1" )
-LOSS_TYPES=(    "ce"       "ce_ls"   "focal"    )
-FOCAL_GAMMAS=(  "2.0"      "2.0"     "1.0"      )
-LABEL_SMOOTHS=( "0.0"      "0.05"    "0.0"      )
-HIDDEN_DIMS=(   512        512       512        )
-NUM_LAYERS_=(   4          4         4          )
-DROPOUTS=(      "0.1"      "0.1"     "0.1"      )
-FLATS=(         1          1         1          )
+VARIANT_NAMES=( "ce_base"  "ce_ls"  )
+LOSS_TYPES=(    "ce"       "ce_ls"  )
+FOCAL_GAMMAS=(  "2.0"      "2.0"   )
+LABEL_SMOOTHS=( "0.0"      "0.05"  )
+HIDDEN_DIMS=(   512        512     )
+NUM_LAYERS_=(   4          4       )
+DROPOUTS=(      "0.1"      "0.1"   )
+FLATS=(         1          1       )
 
 # ── map array task → variant + boot ──────────────────────────────────────────
 IDX="${SLURM_ARRAY_TASK_ID}"

@@ -5,7 +5,7 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=1:00:00
-#SBATCH --array=0-14
+#SBATCH --array=0-4
 #SBATCH -o sweep_%A_%a.out
 #SBATCH -e sweep_%A_%a.err
 
@@ -35,7 +35,7 @@ module load apptainer pytorch/2.7.0
 
 cd "${SLURM_SUBMIT_DIR}"
 
-export N_BOOT=3
+export N_BOOT=1
 export SPLIT_SEED="${SPLIT_SEED:-42}"
 export OUT_ROOT="${OUT_ROOT:-outputs_sweep_${SLURM_ARRAY_JOB_ID}}"
 export EPOCHS="${EPOCHS:-100}"

@@ -5,7 +5,7 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=2:30:00
-#SBATCH --array=0-8
+#SBATCH --array=0-2
 #SBATCH -o train_dnn_variants_%A_%a.out
 #SBATCH -e train_dnn_variants_%A_%a.err
 
@@ -31,7 +31,7 @@ module load apptainer pytorch/2.7.0
 
 cd "${SLURM_SUBMIT_DIR}"
 
-export N_BOOT=3
+export N_BOOT=1
 export SPLIT_SEED="${SPLIT_SEED:-42}"
 export OUT_ROOT="${OUT_ROOT:-outputs_dnn_variants_${SLURM_ARRAY_JOB_ID}}"
 export EPOCHS="${EPOCHS:-300}"

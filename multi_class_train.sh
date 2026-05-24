@@ -5,7 +5,7 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=2:30:00
-#SBATCH --array=0-2
+#SBATCH --array=0-0
 #SBATCH -o train_multiclass_%A_%a.out
 #SBATCH -e train_multiclass_%A_%a.err
 set -euo pipefail
