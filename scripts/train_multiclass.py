@@ -91,6 +91,7 @@ def main():
         out_dir=run_dir,
         run_name=run_name,
         class_names=class_names,
+        use_class_weights=True,
     )
 
     # ── Predictions on test set ──────────────────────────────────────────────

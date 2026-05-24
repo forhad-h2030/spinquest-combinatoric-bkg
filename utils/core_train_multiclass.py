@@ -391,10 +391,16 @@ def train_multiclass_task(
     out_dir: Path,
     run_name: str,
     class_names: Optional[List[str]] = None,
+    use_class_weights: bool = False,
 ) -> Dict[str, object]:
     """
     Trains K-class classifier from per-class feature arrays Xs.
     Saves best checkpoint by val_loss with metrics JSON.
+
+    use_class_weights: if True, use all events from every class and balance via
+    inverse-frequency loss weights instead of downsampling to the minimum count.
+    Val/test sets stay balanced (equal per class) so per-class efficiencies are
+    directly readable and comparable across runs.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -404,17 +410,45 @@ def train_multiclass_task(
     if len(class_names) != K:
         raise ValueError("class_names length must match number of classes in Xs")
 
-    # equalize class counts
-    Xs_eq = equalize_classes(Xs, seed=cfg.seed)
-    n_each = len(Xs_eq[0])
-    for i, Xc in enumerate(Xs_eq):
-        if Xc.ndim != 2:
-            raise ValueError(f"Class {i} array must be 2D (N,F). Got {Xc.shape}")
+    if use_class_weights:
+        # Val/test are equalized so per-class metrics are readable.
+        # Train keeps all remaining events; imbalance is handled by loss weights.
+        min_n = min(len(X) for X in Xs)
+        n_test_each = int(cfg.test_frac * min_n)
+        n_val_each  = int(cfg.val_frac  * min_n)
+        rng = np.random.default_rng(cfg.seed)
+        X_tr_list, y_tr_list = [], []
+        X_va_list, y_va_list = [], []
+        X_te_list, y_te_list = [], []
+        for cls, Xc in enumerate(Xs):
+            Xc = Xc[rng.permutation(len(Xc))]
+            X_te_list.append(Xc[:n_test_each])
+            y_te_list.append(np.full(n_test_each, cls, dtype=np.int64))
+            X_va_list.append(Xc[n_test_each:n_test_each + n_val_each])
+            y_va_list.append(np.full(n_val_each, cls, dtype=np.int64))
+            X_tr_list.append(Xc[n_test_each + n_val_each:])
+            y_tr_list.append(np.full(len(Xc) - n_test_each - n_val_each, cls, dtype=np.int64))
 
-    # split balanced
-    X_train, y_train, X_val, y_val, X_test, y_test = split_balanced_per_class_multiclass(
-        Xs_eq, cfg.train_frac, cfg.val_frac, cfg.test_frac, cfg.seed
-    )
+        def _shuffle(X, y):
+            i = rng.permutation(len(X))
+            return X[i], y[i]
+
+        X_train, y_train = _shuffle(np.concatenate(X_tr_list), np.concatenate(y_tr_list))
+        X_val,   y_val   = _shuffle(np.concatenate(X_va_list), np.concatenate(y_va_list))
+        X_test,  y_test  = _shuffle(np.concatenate(X_te_list), np.concatenate(y_te_list))
+        n_each = f"variable (min={min_n}, max={max(len(X) for X in Xs)})"
+    else:
+        # equalize class counts
+        Xs_eq = equalize_classes(Xs, seed=cfg.seed)
+        n_each = len(Xs_eq[0])
+        for i, Xc in enumerate(Xs_eq):
+            if Xc.ndim != 2:
+                raise ValueError(f"Class {i} array must be 2D (N,F). Got {Xc.shape}")
+
+        # split balanced
+        X_train, y_train, X_val, y_val, X_test, y_test = split_balanced_per_class_multiclass(
+            Xs_eq, cfg.train_frac, cfg.val_frac, cfg.test_frac, cfg.seed
+        )
 
     print(f"[INFO] classes={K}  each_class_n={n_each}")
     print(f"[INFO] splits: train={len(X_train)} val={len(X_val)} test={len(X_test)}")
@@ -453,7 +487,13 @@ def train_multiclass_task(
         flat=cfg.flat,
     ).to(cfg.device)
 
-    criterion = nn.CrossEntropyLoss()
+    if use_class_weights:
+        cw = compute_class_weights(y_train, K).to(cfg.device)
+        criterion = nn.CrossEntropyLoss(weight=cw)
+        print(f"[INFO] class weights: {dict(zip(class_names, cw.cpu().tolist()))}")
+    else:
+        cw = None
+        criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
@@ -484,7 +524,7 @@ def train_multiclass_task(
             tr_n += xb.size(0)
 
         tr_loss = tr_loss_sum / max(tr_n, 1)
-        val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K)
+        val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K, class_weights=cw)
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
 
