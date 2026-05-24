@@ -42,6 +42,7 @@ CFG = TrainConfig(
     loss_type       = os.environ.get("LOSS_TYPE",            "ce"),
     focal_gamma     = float(os.environ.get("FOCAL_GAMMA",    "2.0")),
     label_smoothing = float(os.environ.get("LABEL_SMOOTHING","0.0")),
+    model_type      = os.environ.get("MODEL_TYPE",           "dnn"),
 )
 
 

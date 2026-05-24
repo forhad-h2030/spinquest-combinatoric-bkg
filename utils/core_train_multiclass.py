@@ -40,6 +40,7 @@ class TrainConfig:
     loss_type: str = "ce"       # "ce" | "focal" | "ce_ls"
     focal_gamma: float = 2.0
     label_smoothing: float = 0.0
+    model_type: str = "dnn"     # "dnn" | "resnet"
 
 
 # -------------------------
@@ -306,6 +307,81 @@ class ParticleClassifierMulticlass(nn.Module):
         return self.network(x)  # [B, K]
 
 
+class ResidualBlock(nn.Module):
+    """Two-layer residual block: Linear→BN→ReLU→Dropout→Linear→BN + skip → ReLU."""
+    def __init__(self, dim: int, dropout_rate: float):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.BatchNorm1d(dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(dim, dim),
+            nn.BatchNorm1d(dim),
+        )
+        self.act = nn.ReLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.block(x) + x)
+
+
+class ParticleResNetMulticlass(nn.Module):
+    """
+    Residual DNN for tabular particle physics data.
+
+    Architecture:
+      Input → Linear(input_dim, hidden_dim) → BN → ReLU
+            → [ResidualBlock(hidden_dim)] × num_blocks
+            → Linear(hidden_dim, num_classes)
+
+    Each residual block contains two linear layers with a skip connection,
+    keeping the width constant throughout (flat by design).
+    num_blocks=4 → 9 linear layers total; num_blocks=6 → 13 layers.
+    """
+    def __init__(
+        self,
+        input_dim: int,
+        num_classes: int,
+        hidden_dim: int = 512,
+        num_blocks: int = 4,
+        dropout_rate: float = 0.1,
+    ):
+        super().__init__()
+        self.input_proj = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+        )
+        self.blocks = nn.Sequential(
+            *[ResidualBlock(hidden_dim, dropout_rate) for _ in range(num_blocks)]
+        )
+        self.classifier = nn.Linear(hidden_dim, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.input_proj(x)
+        x = self.blocks(x)
+        return self.classifier(x)
+
+
+def build_model(cfg: "TrainConfig", input_dim: int, num_classes: int) -> nn.Module:
+    if cfg.model_type == "resnet":
+        return ParticleResNetMulticlass(
+            input_dim=input_dim,
+            num_classes=num_classes,
+            hidden_dim=cfg.hidden_dim,
+            num_blocks=cfg.num_layers,   # num_layers = number of residual blocks
+            dropout_rate=cfg.dropout_rate,
+        )
+    return ParticleClassifierMulticlass(
+        input_dim=input_dim,
+        num_classes=num_classes,
+        hidden_dim=cfg.hidden_dim,
+        num_layers=cfg.num_layers,
+        dropout_rate=cfg.dropout_rate,
+        flat=cfg.flat,
+    )
+
+
 # -------------------------
 # Utilities
 # -------------------------
@@ -511,14 +587,8 @@ def train_multiclass_task(
 
     # model
     input_dim = X_train.shape[1]
-    model = ParticleClassifierMulticlass(
-        input_dim=input_dim,
-        num_classes=K,
-        hidden_dim=cfg.hidden_dim,
-        num_layers=cfg.num_layers,
-        dropout_rate=cfg.dropout_rate,
-        flat=cfg.flat,
-    ).to(cfg.device)
+    model = build_model(cfg, input_dim, K).to(cfg.device)
+    print(f"[INFO] model={cfg.model_type}  params={sum(p.numel() for p in model.parameters()):,}")
 
     if use_class_weights:
         cw = compute_class_weights(y_train, K)
@@ -580,7 +650,7 @@ def train_multiclass_task(
                 "best_epoch": best_epoch,
                 "val_metrics": val_metrics,
                 "run_name": run_name,
-                "model_type": "dnn",
+                "model_type": cfg.model_type,
             }
             torch.save(payload, best_ckpt)
 
