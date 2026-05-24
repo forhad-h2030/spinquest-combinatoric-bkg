@@ -20,6 +20,7 @@ from utils.core_train_multiclass import (
     split_with_fixed_test_counts,
     standardize_fit_transform,
     compute_class_weights,
+    build_criterion,
     eval_multiclass,
     predict_proba,
     predict_class,
@@ -50,6 +51,9 @@ class TransformerTrainConfig:
     dropout_rate: float = 0.1
     num_workers: int = 0
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    loss_type: str = "ce"       # "ce" | "focal" | "ce_ls"
+    focal_gamma: float = 2.0
+    label_smoothing: float = 0.0
 
 
 # -------------------------
@@ -187,6 +191,7 @@ def train_multiclass_transformer(
     out_dir: Path,
     run_name: str,
     class_names: Optional[List[str]] = None,
+    use_class_weights: bool = False,
 ) -> Dict[str, object]:
     """
     Train K-class Transformer classifier from per-class feature arrays Xs.
@@ -200,16 +205,40 @@ def train_multiclass_transformer(
     if len(class_names) != K:
         raise ValueError("class_names length must match number of classes in Xs")
 
-    # Equalize class counts then split
-    Xs_eq = equalize_classes(Xs, seed=cfg.seed)
-    n_each = len(Xs_eq[0])
-    for i, Xc in enumerate(Xs_eq):
-        if Xc.ndim != 2:
-            raise ValueError(f"Class {i} array must be 2D (N,F). Got {Xc.shape}")
+    if use_class_weights:
+        min_n = min(len(X) for X in Xs)
+        n_test_each = int(cfg.test_frac * min_n)
+        n_val_each  = int(cfg.val_frac  * min_n)
+        rng = np.random.default_rng(cfg.seed)
+        X_tr_list, y_tr_list = [], []
+        X_va_list, y_va_list = [], []
+        X_te_list, y_te_list = [], []
+        for cls, Xc in enumerate(Xs):
+            Xc = Xc[rng.permutation(len(Xc))]
+            X_te_list.append(Xc[:n_test_each])
+            y_te_list.append(np.full(n_test_each, cls, dtype=np.int64))
+            X_va_list.append(Xc[n_test_each:n_test_each + n_val_each])
+            y_va_list.append(np.full(n_val_each, cls, dtype=np.int64))
+            X_tr_list.append(Xc[n_test_each + n_val_each:])
+            y_tr_list.append(np.full(len(Xc) - n_test_each - n_val_each, cls, dtype=np.int64))
 
-    X_train, y_train, X_val, y_val, X_test, y_test = split_balanced_per_class_multiclass(
-        Xs_eq, cfg.train_frac, cfg.val_frac, cfg.test_frac, cfg.seed
-    )
+        def _shuffle(X, y):
+            i = rng.permutation(len(X))
+            return X[i], y[i]
+
+        X_train, y_train = _shuffle(np.concatenate(X_tr_list), np.concatenate(y_tr_list))
+        X_val,   y_val   = _shuffle(np.concatenate(X_va_list), np.concatenate(y_va_list))
+        X_test,  y_test  = _shuffle(np.concatenate(X_te_list), np.concatenate(y_te_list))
+        n_each = f"variable (min={min_n}, max={max(len(X) for X in Xs)})"
+    else:
+        Xs_eq = equalize_classes(Xs, seed=cfg.seed)
+        n_each = len(Xs_eq[0])
+        for i, Xc in enumerate(Xs_eq):
+            if Xc.ndim != 2:
+                raise ValueError(f"Class {i} array must be 2D (N,F). Got {Xc.shape}")
+        X_train, y_train, X_val, y_val, X_test, y_test = split_balanced_per_class_multiclass(
+            Xs_eq, cfg.train_frac, cfg.val_frac, cfg.test_frac, cfg.seed
+        )
 
     print(f"[INFO] classes={K}  each_class_n={n_each}")
     print(f"[INFO] splits: train={len(X_train)} val={len(X_val)} test={len(X_test)}")
@@ -256,7 +285,14 @@ def train_multiclass_transformer(
     print(f"[INFO] d_model={cfg.d_model} n_heads={cfg.n_heads} "
           f"n_encoder_layers={cfg.n_encoder_layers} dim_ff={cfg.dim_feedforward}")
 
-    criterion = nn.CrossEntropyLoss()
+    if use_class_weights:
+        cw = compute_class_weights(y_train, K)
+        print(f"[INFO] class weights: {dict(zip(class_names, cw.tolist()))}")
+    else:
+        cw = None
+    criterion = build_criterion(cfg, cw, cfg.device)
+    print(f"[INFO] loss={cfg.loss_type}" + (f"  gamma={cfg.focal_gamma}" if cfg.loss_type == "focal" else "") +
+          (f"  label_smoothing={cfg.label_smoothing}" if cfg.loss_type == "ce_ls" else ""))
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
@@ -287,7 +323,8 @@ def train_multiclass_transformer(
             tr_n += xb.size(0)
 
         tr_loss = tr_loss_sum / max(tr_n, 1)
-        val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K)
+        val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K,
+                                      class_weights=cw if use_class_weights else None)
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
 

@@ -5,7 +5,7 @@
 #SBATCH -c 1
 #SBATCH --mem=24G
 #SBATCH --time=12:30:00
-#SBATCH --array=0-2
+#SBATCH --array=0-0
 #SBATCH -o train_multiclass_transformer_%A_%a.out
 #SBATCH -e train_multiclass_transformer_%A_%a.err
 
@@ -21,7 +21,7 @@ export SPLIT_SEED="${SPLIT_SEED:-42}"
 export OUT_ROOT="${OUT_ROOT:-outputs_multiclass_transformer_${SLURM_ARRAY_JOB_ID}}"
 export STANDARDIZE="${STANDARDIZE:-1}"
 
-export EPOCHS="${EPOCHS:-600}"
+export EPOCHS="${EPOCHS:-300}"
 export BATCH_SIZE="${BATCH_SIZE:-1024}"
 export LR="${LR:-5e-4}"
 export LR_MIN="${LR_MIN:-1e-6}"
@@ -32,6 +32,9 @@ export N_HEADS="${N_HEADS:-4}"            # attention heads → head_dim = 32
 export N_ENCODER_LAYERS="${N_ENCODER_LAYERS:-4}"  # number of encoder blocks
 export DIM_FF="${DIM_FF:-512}"            # feedforward inner dimension (4× D_MODEL)
 export DROPOUT="${DROPOUT:-0.1}"
+export LOSS_TYPE="${LOSS_TYPE:-ce_ls}"
+export FOCAL_GAMMA="${FOCAL_GAMMA:-2.0}"
+export LABEL_SMOOTHING="${LABEL_SMOOTHING:-0.05}"
 
 export RUN_NAME="${RUN_NAME:-transformer_jpsi_psip_dy_comb}"
 SCRIPT="${SCRIPT:-scripts/train_multiclass_transformer.py}"
@@ -86,6 +89,9 @@ apptainer exec --nv --cleanenv \
   --env N_ENCODER_LAYERS="$N_ENCODER_LAYERS" \
   --env DIM_FF="$DIM_FF" \
   --env DROPOUT="$DROPOUT" \
+  --env LOSS_TYPE="$LOSS_TYPE" \
+  --env FOCAL_GAMMA="$FOCAL_GAMMA" \
+  --env LABEL_SMOOTHING="$LABEL_SMOOTHING" \
   --env RUN_NAME="$RUN_NAME" \
   --env QT_QPA_PLATFORM=offscreen \
   --env DISPLAY= \

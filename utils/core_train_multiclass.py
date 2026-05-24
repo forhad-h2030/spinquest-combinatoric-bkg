@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List
 
 import numpy as np
 import torch
@@ -62,7 +62,7 @@ class FocalLoss(nn.Module):
         return ((1.0 - pt) ** self.gamma * ce).mean()
 
 
-def build_criterion(cfg: TrainConfig, class_weights: Optional[torch.Tensor], device: str) -> nn.Module:
+def build_criterion(cfg: Any, class_weights: Optional[torch.Tensor], device: str) -> nn.Module:
     w = class_weights.to(device) if class_weights is not None else None
     if cfg.loss_type == "focal":
         return FocalLoss(gamma=cfg.focal_gamma, weight=w)
