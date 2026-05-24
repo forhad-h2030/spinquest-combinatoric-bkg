@@ -9,6 +9,7 @@ from typing import Dict, Optional, Tuple, List
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
@@ -36,6 +37,38 @@ class TrainConfig:
     flat: bool = False          # constant-width layers (no halving)
     num_workers: int = 0
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    loss_type: str = "ce"       # "ce" | "focal" | "ce_ls"
+    focal_gamma: float = 2.0
+    label_smoothing: float = 0.0
+
+
+# -------------------------
+# Loss
+# -------------------------
+class FocalLoss(nn.Module):
+    """Focal loss for multi-class classification.
+    Down-weights easy (high-confidence) examples so the model focuses
+    on hard examples near the decision boundary — the main source of impurity.
+    """
+    def __init__(self, gamma: float = 2.0, weight: Optional[torch.Tensor] = None):
+        super().__init__()
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        ce = F.cross_entropy(logits, targets, weight=self.weight, reduction="none")
+        pt = torch.exp(-ce)
+        return ((1.0 - pt) ** self.gamma * ce).mean()
+
+
+def build_criterion(cfg: TrainConfig, class_weights: Optional[torch.Tensor], device: str) -> nn.Module:
+    w = class_weights.to(device) if class_weights is not None else None
+    if cfg.loss_type == "focal":
+        return FocalLoss(gamma=cfg.focal_gamma, weight=w)
+    if cfg.loss_type == "ce_ls":
+        # label smoothing — weight not supported together in PyTorch CE, apply weights separately
+        return nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing, weight=w)
+    return nn.CrossEntropyLoss(weight=w)
 
 
 # -------------------------
@@ -488,12 +521,13 @@ def train_multiclass_task(
     ).to(cfg.device)
 
     if use_class_weights:
-        cw = compute_class_weights(y_train, K).to(cfg.device)
-        criterion = nn.CrossEntropyLoss(weight=cw)
-        print(f"[INFO] class weights: {dict(zip(class_names, cw.cpu().tolist()))}")
+        cw = compute_class_weights(y_train, K)
+        print(f"[INFO] class weights: {dict(zip(class_names, cw.tolist()))}")
     else:
         cw = None
-        criterion = nn.CrossEntropyLoss()
+    criterion = build_criterion(cfg, cw, cfg.device)
+    print(f"[INFO] loss={cfg.loss_type}" + (f"  gamma={cfg.focal_gamma}" if cfg.loss_type == "focal" else "") +
+          (f"  label_smoothing={cfg.label_smoothing}" if cfg.loss_type == "ce_ls" else ""))
     optimizer = optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=cfg.epochs, eta_min=cfg.lr_min
@@ -524,7 +558,8 @@ def train_multiclass_task(
             tr_n += xb.size(0)
 
         tr_loss = tr_loss_sum / max(tr_n, 1)
-        val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K, class_weights=cw)
+        val_metrics = eval_multiclass(model, val_loader, cfg.device, num_classes=K,
+                                      class_weights=cw if use_class_weights else None)
         scheduler.step()
         current_lr = scheduler.get_last_lr()[0]
 
