@@ -6,8 +6,8 @@
 #SBATCH --mem=24G
 #SBATCH --time=4:00:00
 #SBATCH --array=0-3
-#SBATCH -o resnet_%A_%a.out
-#SBATCH -e resnet_%A_%a.err
+#SBATCH -o /dev/null
+#SBATCH -e /dev/null
 
 # ── ResNet diagnostic sweep: 4 architectures × 1 seed = 4 jobs, 300 epochs ───
 #
@@ -79,6 +79,9 @@ mkdir -p "$RUN_DIR"
 export OUT_DIR="$RUN_DIR"
 export MPLCONFIGDIR="$RUN_DIR/mplconfig"
 mkdir -p "$MPLCONFIGDIR"
+
+exec 1>"$RUN_DIR/slurm_${SLURM_ARRAY_JOB_ID}_${IDX}.out" \
+     2>"$RUN_DIR/slurm_${SLURM_ARRAY_JOB_ID}_${IDX}.err"
 
 export BOOT_IDX BOOT_SEED
 

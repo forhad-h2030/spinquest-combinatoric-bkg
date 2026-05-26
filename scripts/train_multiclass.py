@@ -18,15 +18,14 @@ from utils.core_train_multiclass import (
 from utils.plots_multiclass import plot_overlays_multiclass
 from utils.features import FEATURE_NAMES
 
-# Define input files for each class
-JPSI_FILE = "features_mc_jpsi_tuned1.npy"
-PSIP_FILE = "features_mc_psip_tuned1.npy"
-DY_FILE   = "features_mc_dy_target_pythia8_clsDNNmulti_v1.npy"
-COMB_FILE = "features_mc_comb_target_gun_clsDNNmulti_v1.npy"
+# Input files — overridable via env vars for different data versions
+JPSI_FILE = os.environ.get("JPSI_FILE", "features_mc_jpsi_tuned1.npy")
+PSIP_FILE = os.environ.get("PSIP_FILE", "features_mc_psip_tuned1.npy")
+DY_FILE   = os.environ.get("DY_FILE",   "features_mc_dy_target_pythia8_clsDNNmulti_v1.npy")
+COMB_FILE = os.environ.get("COMB_FILE", "features_mc_comb_target_gun_clsDNNmulti_v1.npy")
 
-#DATA_DIR = REPO_ROOT / "data" / "ml_input_multiclass_M_24"
-DATA_DIR = REPO_ROOT / "data" / "ml_input"
-OUT_DIR  = Path(os.environ.get("OUT_DIR", str(REPO_ROOT / "models")))
+DATA_DIR = Path(os.environ.get("DATA_DIR", str(REPO_ROOT / "data" / "ml_input")))
+OUT_DIR  = Path(os.environ.get("OUT_DIR",  str(REPO_ROOT / "models")))
 
 CFG = TrainConfig(
     epochs          = int(os.environ.get("EPOCHS",           "300")),
